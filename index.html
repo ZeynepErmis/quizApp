@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz App</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        #quiz-container {
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            width: 500px;
+            max-width: 100%;
+            text-align: center;
+        }
+
+        .question {
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+
+        .options {
+            list-style: none;
+            padding: 0;
+        }
+
+        .options li {
+            background-color: #007bff;
+            color: white;
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .options li:hover {
+            background-color: #0056b3;
+        }
+
+        .disabled li {
+            pointer-events: none;
+            opacity: 0.6;
+        }
+
+        .timer {
+            font-size: 1.2em;
+            color: red;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+        .result-table {
+            margin-top: 20px;
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .result-table th, .result-table td {
+            border: 1px solid #ddd;
+            padding: 10px;
+        }
+
+        .result-table th {
+            background-color: #007bff;
+            color: white;
+        }
+
+        .result-table td {
+            background-color: #f9f9f9;
+        }
+
+        #result-container {
+            display: none;
+        }
+
+        #result-container h2 {
+            font-size: 1.8em;
+            margin-bottom: 20px;
+            color: #007bff;
+        }
+
+        #start-button {
+            padding: 10px 20px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1.2em;
+        }
+
+        #start-button:hover {
+            background-color: #218838;
+        }
+
+        .rules {
+            margin-bottom: 20px;
+            font-size: 1em;
+            color: #555;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+
+<div id="quiz-container">
+    <div id="rules" class="rules">
+        <h3>Kurallar:</h3>
+        <ul>
+            <li>Test çalışması toplamda 10 sorudur ve her soru 4 şıktan oluşmaktadır</li>
+            <li>Her soru ekranda 30 saniye kalacaktır, ilk 10 saniye cevap şıklarına tıklanamayacak olup 10. saniyeden sonra tıklanabilecektir.</li>
+            <li>Geçmiş sorulara dönülememektedir.</li>
+            <li>Test bitiminde verilen yanıtlar ekranda gösterilecektir.</li>
+        </ul>
+    </div>
+    <button id="start-button">Başla</button>
+    <div id="question-container" style="display:none;">
+        <div id="question" class="question"></div>
+        <ul id="options" class="options"></ul>
+        <div id="timer" class="timer"></div>
+    </div>
+</div>
+
+<div id="result-container">
+    <h2>Quiz Sonuçları</h2>
+    <table id="result-table" class="result-table">
+        <thead>
+            <tr>
+                <th>Soru</th>
+                <th>Verilen Yanıt</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+</div>
+
+<script>
+    let questions = [];
+    let currentQuestionIndex = 0;
+    let timerInterval;
+    let isAnswerable = false;
+
+    document.getElementById('start-button').addEventListener('click', () => {
+        document.getElementById('rules').style.display = 'none'; // Kuralları gizle
+        document.getElementById('start-button').style.display = 'none';
+        fetchQuestions();
+    });
+
+    function fetchQuestions() {
+        fetch('https://jsonplaceholder.typicode.com/posts')
+            .then(response => response.json())
+            .then(data => {
+                questions = data.slice(0, 10).map((post, index) => ({
+                    question: post.title,
+                    options: generateOptions(post.body),
+                    correctAnswer: 'A', // Dummy correct answer
+                    userAnswer: null
+                }));
+                startQuiz();
+            });
+    }
+
+    function startQuiz() {
+        document.getElementById('question-container').style.display = 'block';
+        showQuestion();
+        startTimer(30);
+    }
+
+    function showQuestion() {
+        const questionData = questions[currentQuestionIndex];
+        document.getElementById('question').textContent = `${currentQuestionIndex + 1}. ${questionData.question}`;
+        const optionsList = document.getElementById('options');
+        optionsList.innerHTML = ''; // Clear old options
+        questionData.options.forEach(option => {
+            const li = document.createElement('li');
+            li.textContent = option;
+            li.classList.add('option');
+            li.addEventListener('click', () => selectAnswer(option));
+            optionsList.appendChild(li);
+        });
+        document.getElementById('options').classList.add('disabled');
+        isAnswerable = false;
+
+        // 10 saniye sonra şıklar aktif hale getirilecek
+        setTimeout(() => {
+            document.getElementById('options').classList.remove('disabled');
+            isAnswerable = true;
+        }, 10000); // 10 saniye bekleme süresi
+    }
+
+    function generateOptions(bodyText) {
+        const words = bodyText.split(' ');
+        return [
+            `A) ${words[0]}`,
+            `B) ${words[1]}`,
+            `C) ${words[2]}`,
+            `D) ${words[3]}`
+        ];
+    }
+
+    function selectAnswer(answer) {
+        if (!isAnswerable) return; // Eğer 10 saniye dolmadıysa şıklar seçilemez
+        questions[currentQuestionIndex].userAnswer = answer;
+        nextQuestion();
+    }
+
+    function nextQuestion() {
+        if (currentQuestionIndex < questions.length - 1) {
+            currentQuestionIndex++;
+            showQuestion();
+            startTimer(30);
+        } else {
+            clearInterval(timerInterval);
+            showResults();
+        }
+    }
+
+    function startTimer(seconds) {
+        clearInterval(timerInterval);
+        let timeLeft = seconds;
+        document.getElementById('timer').textContent = `Kalan Süre: ${timeLeft}`;
+        timerInterval = setInterval(() => {
+            timeLeft--;
+            document.getElementById('timer').textContent = `Kalan Süre: ${timeLeft}`;
+            if (timeLeft <= 0) {
+                nextQuestion();
+            }
+        }, 1000);
+    }
+
+    function showResults() {
+        document.getElementById('question-container').style.display = 'none';
+        document.getElementById('quiz-container').style.display = 'none';
+        document.getElementById('result-container').style.display = 'block';
+        const resultTableBody = document.querySelector('#result-table tbody');
+        questions.forEach((q) => {
+            const row = document.createElement('tr');
+            const questionCell = document.createElement('td');
+            questionCell.textContent = q.question;
+            const answerCell = document.createElement('td');
+            answerCell.textContent = q.userAnswer ? q.userAnswer : 'Cevaplanmadı';
+            row.appendChild(questionCell);
+            row.appendChild(answerCell);
+            resultTableBody.appendChild(row);
+        });
+    }
+</script>
+
+</body>
+</html>
